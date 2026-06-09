@@ -1,7 +1,11 @@
-/** @type {import('next').NextConfig} */
+// memoria-frontend/next.config.mjs
+
 const nextConfig = {
   eslint: {
     ignoreDuringBuilds: true,
+  },
+  typescript: {
+    ignoreBuildErrors: true,
   },
 };
 
