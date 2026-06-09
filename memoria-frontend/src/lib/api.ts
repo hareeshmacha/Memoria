@@ -1,8 +1,13 @@
 import axios from 'axios';
 import { useAuthStore } from '../store/authStore';
 
+const rawUrl = process.env.NEXT_PUBLIC_API_URL;
+const baseURL = rawUrl 
+  ? (rawUrl.endsWith('/api/v1') ? rawUrl : `${rawUrl}/api/v1`)
+  : 'https://memoria-2-4td4.onrender.com/api/v1';
+
 export const api = axios.create({
-  baseURL: 'http://localhost:4000/api/v1',
+  baseURL,
 });
 
 api.interceptors.request.use((config) => {

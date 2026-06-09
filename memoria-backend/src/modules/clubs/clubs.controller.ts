@@ -60,8 +60,10 @@ export class ClubsController {
       const club = await prisma.$transaction(async (tx) => {
         const newClub = await tx.club.create({
           data: {
-            ...data,
-            created_by: userId,
+            name: data.name,
+            slug: data.slug,
+            description: data.description,
+            creator: { connect: { id: userId } },
           },
         });
 

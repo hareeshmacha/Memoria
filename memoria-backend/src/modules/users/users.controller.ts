@@ -5,7 +5,7 @@ import { RekognitionService } from '../../services/rekognition.service';
 export const registerFace = async (req: Request, res: Response) => {
   try {
     const { s3Key } = req.body;
-    const userId = req.user?.id;
+    const userId = (req.user as any)?.id;
 
     if (!userId) {
       return res.status(401).json({ success: false, error: 'Unauthorized' });
@@ -47,7 +47,7 @@ export const registerFace = async (req: Request, res: Response) => {
 
 export const updateProfile = async (req: Request, res: Response) => {
   try {
-    const userId = req.user?.id;
+    const userId = (req.user as any)?.id;
     if (!userId) return res.status(401).json({ success: false, error: 'Unauthorized' });
 
     const { full_name, bio } = req.body;
@@ -141,7 +141,7 @@ export const searchUsers = async (req: Request, res: Response) => {
 
 export const getDashboardStats = async (req: Request, res: Response) => {
   try {
-    const userId = req.user?.id;
+    const userId = (req.user as any)?.id;
     if (!userId) return res.status(401).json({ success: false, error: 'Unauthorized' });
 
     // Count user's total photos (uploaded)

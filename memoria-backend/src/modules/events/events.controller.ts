@@ -20,7 +20,7 @@ export class EventsController {
       const event = await prisma.event.create({
         data: {
           ...req.body,
-          created_by: req.user?.id,
+          created_by: (req as any).user?.id,
         },
       });
       res.status(201).json({ data: event });
