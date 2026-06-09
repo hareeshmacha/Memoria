@@ -28,7 +28,9 @@ const saveMediaSchema = z.object({
   s3Key: z.string(),
   sizeBytes: z.number().int().positive(),
   contentType: z.string(),
-  visibility: z.string().optional()
+  visibility: z.string().optional(),
+  width: z.number().optional(),
+  height: z.number().optional()
 });
 
 export const getPresignedUrl = async (req: Request, res: Response) => {
@@ -88,8 +90,8 @@ export const saveMediaRecord = async (req: Request, res: Response) => {
         club_id: data.clubId,
         event_id: data.eventId,
         album_id: data.albumId,
-        width_px: data.width,
-        height_px: data.height,
+        width_px: data.width || null,
+        height_px: data.height || null,
         upload_status: 'processing',
         visibility: data.visibility || 'public' // Default to public if not provided
       }
@@ -128,7 +130,7 @@ export const getFeed = async (req: Request, res: Response) => {
         where: { user_id: userId, status: 'active' },
         select: { club_id: true }
       });
-      allowedClubIds = memberships.map(m => m.club_id);
+      allowedClubIds = memberships.map((m) => m.club_id);
     }
 
     // If not authenticated, return empty feed
@@ -157,9 +159,9 @@ export const getFeed = async (req: Request, res: Response) => {
       }
     });
 
-    const serialized = await Promise.all(media.map(async m => ({
+    const serialized = await Promise.all(media.map(async (m) => ({
       ...m,
-      isLiked: m.likes ? m.likes.length > 0 : false,
+      isLiked: m.likes ? (m.likes as any).length > 0 : false,
       file_size_bytes: m.file_size_bytes.toString(),
       signed_url: await S3Service.generatePresignedDownloadUrl(m.s3_key)
     })));
@@ -222,9 +224,9 @@ export const getEventMedia = async (req: Request, res: Response) => {
       }
     });
 
-    const serialized = await Promise.all(media.map(async m => ({
+    const serialized = await Promise.all(media.map(async (m) => ({
       ...m,
-      isLiked: m.likes ? m.likes.length > 0 : false,
+      isLiked: m.likes ? (m.likes as any).length > 0 : false,
       file_size_bytes: m.file_size_bytes.toString(),
       signed_url: await S3Service.generatePresignedDownloadUrl(m.s3_key)
     })));
@@ -342,7 +344,7 @@ export async function processMediaAI(mediaId: string, s3Key: string) {
 
 export const getMyPhotos = async (req: Request, res: Response) => {
   try {
-    const userId = req.user?.id;
+    const userId = (req as any).user?.id;
     if (!userId) return res.status(401).json({ success: false, error: 'Unauthorized' });
 
     let allowedClubIds: string[] = [];
@@ -350,7 +352,7 @@ export const getMyPhotos = async (req: Request, res: Response) => {
       where: { user_id: userId, status: 'active' },
       select: { club_id: true }
     });
-    allowedClubIds = memberships.map(m => m.club_id);
+    allowedClubIds = memberships.map((m) => m.club_id);
 
     const mediaFaces = await prisma.mediaFace.findMany({
       where: { 
@@ -379,9 +381,9 @@ export const getMyPhotos = async (req: Request, res: Response) => {
       orderBy: { created_at: 'desc' }
     });
 
-    const media = await Promise.all(mediaFaces.map(async mf => ({
+    const media = await Promise.all(mediaFaces.map(async (mf) => ({
       ...mf.media,
-      isLiked: mf.media.likes ? mf.media.likes.length > 0 : false,
+      isLiked: mf.media.likes ? (mf.media.likes as any).length > 0 : false,
       file_size_bytes: mf.media.file_size_bytes.toString(),
       signed_url: await S3Service.generatePresignedDownloadUrl(mf.media.s3_key)
     })));
@@ -413,7 +415,7 @@ export const searchMedia = async (req: Request, res: Response) => {
         where: { user_id: userId, status: 'active' },
         select: { club_id: true }
       });
-      allowedClubIds = memberships.map(m => m.club_id);
+      allowedClubIds = memberships.map((m) => m.club_id);
     }
 
     let orderBy: any = { created_at: 'desc' };
@@ -471,9 +473,9 @@ export const searchMedia = async (req: Request, res: Response) => {
       }
     });
 
-    const serialized = await Promise.all(media.map(async m => ({
+    const serialized = await Promise.all(media.map(async (m) => ({
       ...m,
-      isLiked: m.likes ? m.likes.length > 0 : false,
+      isLiked: m.likes ? (m.likes as any).length > 0 : false,
       file_size_bytes: m.file_size_bytes.toString(),
       signed_url: await S3Service.generatePresignedDownloadUrl(m.s3_key)
     })));
@@ -540,9 +542,9 @@ export const getFavourites = async (req: Request, res: Response) => {
       }
     });
 
-    const mediaList = await Promise.all(favourites.map(async f => ({
+    const mediaList = await Promise.all(favourites.map(async (f) => ({
       ...f.media,
-      isLiked: f.media.likes ? f.media.likes.length > 0 : false,
+      isLiked: f.media.likes ? (f.media.likes as any).length > 0 : false,
       file_size_bytes: f.media.file_size_bytes.toString(),
       is_favourited: true,
       signed_url: await S3Service.generatePresignedDownloadUrl(f.media.s3_key)
@@ -687,11 +689,11 @@ export const downloadWatermarked = async (req: Request, res: Response) => {
     <svg width="${width}" height="${height}">
       <!-- Shadow Layer -->
       <text x="${width - padding + 3}" y="${height - padding * 1.4 + 3}" text-anchor="end" fill="rgba(0,0,0,0.6)" font-size="${fontSize}px" font-family="Arial, Helvetica, sans-serif" font-weight="bold">${media.club?.name || 'Memoria'}</text>
-      <text x="${width - padding + 2}" y="${height - padding * 0.6 + 2}" text-anchor="end" fill="rgba(0,0,0,0.6)" font-size="${Math.floor(fontSize * 0.6)}px" font-family="Arial, Helvetica, sans-serif" font-weight="bold">${media.event?.title || 'Gallery'} • Memoria</text>
+      <text x="${width - padding + 2}" y="${height - padding * 0.6 + 2}" text-anchor="end" fill="rgba(0,0,0,0.6)" font-size="${Math.floor(fontSize * 0.6)}px" font-family="Arial, Helvetica, sans-serif">${roleText}</text>
       
       <!-- Text Layer -->
       <text x="${width - padding}" y="${height - padding * 1.4}" text-anchor="end" fill="rgba(255,255,255,0.95)" font-size="${fontSize}px" font-family="Arial, Helvetica, sans-serif" font-weight="bold">${media.club?.name || 'Memoria'}</text>
-      <text x="${width - padding}" y="${height - padding * 0.6}" text-anchor="end" fill="rgba(255,255,255,0.85)" font-size="${Math.floor(fontSize * 0.6)}px" font-family="Arial, Helvetica, sans-serif" font-weight="bold">${media.event?.title || 'Gallery'} • Memoria</text>
+      <text x="${width - padding}" y="${height - padding * 0.6}" text-anchor="end" fill="rgba(255,255,255,0.85)" font-size="${Math.floor(fontSize * 0.6)}px" font-family="Arial, Helvetica, sans-serif">${roleText}</text>
     </svg>
     `;
     

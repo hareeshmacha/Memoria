@@ -1,12 +1,14 @@
-import { Worker } from 'bullmq';
-import { redisConnection } from '../config/redis';
+import { Worker, Job } from 'bullmq';
+import { env } from '../config/index';
 import { prisma } from '../config/database';
 import { processMediaAI } from '../modules/media/media.controller';
+
+const redisUrl = env.REDIS_URL || 'redis://localhost:6379';
 
 // Media Processing Worker
 export const mediaWorker = new Worker(
   'mediaProcessing',
-  async (job) => {
+  async (job: Job) => {
     console.log(`[MediaWorker] Processing job ${job.id} of type ${job.name}`);
     if (job.name === 'process_media') {
       console.log(`[MediaWorker] Processing media ${job.data.mediaId}`);
@@ -34,43 +36,43 @@ export const mediaWorker = new Worker(
       console.log(`[MediaWorker] AI tagging for media ${job.data.mediaId}`);
     }
   },
-  { connection: redisConnection }
+  { connection: { url: redisUrl } }
 );
 
 // Face Scan Worker
 export const faceScanWorker = new Worker(
   'faceScan',
-  async (job) => {
+  async (job: Job) => {
     console.log(`[FaceScanWorker] Processing job ${job.id} of type ${job.name}`);
     // Stub
   },
-  { connection: redisConnection }
+  { connection: { url: redisUrl } }
 );
 
 // Downloads (Watermarking) Worker
 export const downloadsWorker = new Worker(
   'downloads',
-  async (job) => {
+  async (job: Job) => {
     console.log(`[DownloadsWorker] Processing job ${job.id} of type ${job.name}`);
     // Stub
   },
-  { connection: redisConnection }
+  { connection: { url: redisUrl } }
 );
 
 // Email Worker
 export const emailWorker = new Worker(
   'email',
-  async (job) => {
+  async (job: Job) => {
     console.log(`[EmailWorker] Processing job ${job.id} of type ${job.name}`);
     // Stub
   },
-  { connection: redisConnection }
+  { connection: { url: redisUrl } }
 );
 
 // Worker Event Listeners
 [mediaWorker, faceScanWorker, downloadsWorker, emailWorker].forEach(worker => {
   worker.on('completed', (job) => {
-    console.log(`[${worker.name}] Job ${job.id} completed successfully`);
+    console.log(`[${worker.name}] Job ${job?.id} completed successfully`);
   });
 
   worker.on('failed', (job, err) => {
