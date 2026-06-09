@@ -1,0 +1,447 @@
+generator client {
+  provider   = "prisma-client-js"
+  engineType = "library"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model User {
+  id                  String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  email               String    @unique @db.VarChar(255)
+  email_verified      Boolean?  @default(false)
+  password_hash       String?   @db.VarChar(255)
+  full_name           String    @db.VarChar(255)
+  username            String    @unique @db.VarChar(100)
+  avatar_s3_key       String?   @db.VarChar(500)
+  bio                 String?   @db.Text
+  auth_provider       String?   @default("local") @db.VarChar(50)
+  provider_id         String?   @db.VarChar(255)
+  face_rekognition_id String?   @db.VarChar(255)
+  face_indexed        Boolean?  @default(false)
+  face_s3_key         String?   @db.VarChar(500)
+  is_active           Boolean?  @default(true)
+  is_admin            Boolean?  @default(false)
+  token_version       Int?      @default(1)
+  last_login_at       DateTime? @db.Timestamptz
+  login_count         Int?      @default(0)
+  created_at          DateTime? @default(now()) @db.Timestamptz
+  updated_at          DateTime? @default(now()) @updatedAt @db.Timestamptz
+
+  // Relations
+  memberships           ClubMembership[]
+  created_clubs         Club[]               @relation("ClubCreator")
+  created_events        Event[]              @relation("EventCreator")
+  created_albums        Album[]              @relation("AlbumCreator")
+  uploaded_media        Media[]              @relation("MediaUploader")
+  media_faces           MediaFace[]
+  likes                 Like[]
+  comments              Comment[]
+  favourites            Favourite[]
+  tags_made             TagInMedia[]         @relation("TagCreator")
+  tags_received         TagInMedia[]         @relation("TaggedUser")
+  notifications         Notification[]       @relation("NotificationUser")
+  notifications_sent    Notification[]       @relation("NotificationActor")
+  downloads             Download[]
+  invitations_sent      ClubInvitation[]     @relation("InvitationSender")
+  invitations_accepted  ClubInvitation[]     @relation("InvitationAcceptor")
+  password_reset_tokens PasswordResetToken[]
+  media_views           MediaView[]
+  reports_made          Report[]             @relation("Reporter")
+  reports_resolved      Report[]             @relation("ReportResolver")
+  audit_logs            AuditLog[]           @relation("AuditActor")
+  comment_likes         CommentLike[]
+
+  @@index([email])
+  @@index([username])
+  @@index([auth_provider, provider_id])
+}
+
+model Club {
+  id             String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name           String    @db.VarChar(255)
+  slug           String    @unique @db.VarChar(255)
+  description    String?   @db.Text
+  logo_s3_key    String?   @db.VarChar(500)
+  banner_s3_key  String?   @db.VarChar(500)
+  website_url    String?   @db.VarChar(500)
+  contact_email  String?   @db.VarChar(255)
+  is_public      Boolean?  @default(true)
+  watermark_text String?   @db.VarChar(255)
+  created_by     String?   @db.Uuid
+  created_at     DateTime? @default(now()) @db.Timestamptz
+  updated_at     DateTime? @default(now()) @updatedAt @db.Timestamptz
+
+  creator     User?            @relation("ClubCreator", fields: [created_by], references: [id])
+  memberships ClubMembership[]
+  events      Event[]
+  media       Media[]
+  invitations ClubInvitation[]
+}
+
+model ClubMembership {
+  id         String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  user_id    String    @db.Uuid
+  club_id    String    @db.Uuid
+  role       String    @db.VarChar(50)
+  status     String?   @default("active") @db.VarChar(50)
+  invited_by String?   @db.Uuid
+  joined_at  DateTime? @default(now()) @db.Timestamptz
+  updated_at DateTime? @default(now()) @updatedAt @db.Timestamptz
+
+  user User @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  club Club @relation(fields: [club_id], references: [id], onDelete: Cascade)
+
+  @@unique([user_id, club_id])
+  @@index([user_id])
+  @@index([club_id])
+  @@index([club_id, role])
+}
+
+model Event {
+  id             String                   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  club_id        String                   @db.Uuid
+  created_by     String?                  @db.Uuid
+  title          String                   @db.VarChar(255)
+  slug           String                   @db.VarChar(255)
+  description    String?                  @db.Text
+  category       String                   @db.VarChar(100)
+  event_date     DateTime                 @db.Date
+  event_end_date DateTime?                @db.Date
+  location       String?                  @db.VarChar(255)
+  cover_media_id String?                  @db.Uuid
+  visibility     String?                  @default("public") @db.VarChar(50)
+  status         String?                  @default("upcoming") @db.VarChar(50)
+  media_count    Int?                     @default(0)
+  view_count     Int?                     @default(0)
+  search_vector  Unsupported("tsvector")?
+  created_at     DateTime?                @default(now()) @db.Timestamptz
+  updated_at     DateTime?                @default(now()) @updatedAt @db.Timestamptz
+
+  club    Club    @relation(fields: [club_id], references: [id], onDelete: Cascade)
+  creator User?   @relation("EventCreator", fields: [created_by], references: [id])
+  albums  Album[]
+  media   Media[]
+  // Unsupported raw index for search_vector needs to be added via raw SQL migration
+
+  @@unique([club_id, slug])
+  @@index([club_id])
+  @@index([event_date(sort: Desc)])
+  @@index([category])
+  @@index([visibility])
+}
+
+model Album {
+  id             String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  event_id       String    @db.Uuid
+  created_by     String?   @db.Uuid
+  title          String    @db.VarChar(255)
+  description    String?   @db.Text
+  cover_media_id String?   @db.Uuid
+  visibility     String?   @default("inherit") @db.VarChar(50)
+  media_count    Int?      @default(0)
+  sort_order     Int?      @default(0)
+  created_at     DateTime? @default(now()) @db.Timestamptz
+  updated_at     DateTime? @default(now()) @updatedAt @db.Timestamptz
+
+  event   Event   @relation(fields: [event_id], references: [id], onDelete: Cascade)
+  creator User?   @relation("AlbumCreator", fields: [created_by], references: [id])
+  media   Media[]
+
+  @@index([event_id])
+  @@index([event_id, sort_order])
+}
+
+model Media {
+  id          String  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  event_id    String  @db.Uuid
+  album_id    String? @db.Uuid
+  uploaded_by String? @db.Uuid
+  club_id     String? @db.Uuid
+
+  original_filename String  @db.VarChar(500)
+  s3_key            String  @unique @db.VarChar(500)
+  s3_key_thumb_sm   String? @db.VarChar(500)
+  s3_key_thumb_lg   String? @db.VarChar(500)
+  file_type         String  @db.VarChar(50)
+  mime_type         String  @db.VarChar(100)
+  file_size_bytes   BigInt
+  width_px          Int?
+  height_px         Int?
+  duration_sec      Int?
+
+  title         String?   @db.VarChar(500)
+  description   String?   @db.Text
+  taken_at      DateTime? @db.Timestamptz
+  location_name String?   @db.VarChar(255)
+  exif_data     Json?
+
+  ai_tags           String[]
+  ai_confidence     Json?
+  moderation_status String?  @default("pending") @db.VarChar(50)
+
+  like_count      Int? @default(0)
+  comment_count   Int? @default(0)
+  download_count  Int? @default(0)
+  view_count      Int? @default(0)
+  favourite_count Int? @default(0)
+
+  upload_status String?  @default("processing") @db.VarChar(50)
+  visibility    String?  @default("inherit") @db.VarChar(50)
+  is_featured   Boolean? @default(false)
+  is_deleted    Boolean? @default(false)
+
+  search_vector Unsupported("tsvector")?
+
+  created_at DateTime? @default(now()) @db.Timestamptz
+  updated_at DateTime? @default(now()) @updatedAt @db.Timestamptz
+
+  event    Event  @relation(fields: [event_id], references: [id], onDelete: Cascade)
+  album    Album? @relation(fields: [album_id], references: [id], onDelete: SetNull)
+  uploader User?  @relation("MediaUploader", fields: [uploaded_by], references: [id])
+  club     Club?  @relation(fields: [club_id], references: [id])
+
+  media_faces   MediaFace[]
+  likes         Like[]
+  comments      Comment[]
+  favourites    Favourite[]
+  tags_in_media TagInMedia[]
+  downloads     Download[]
+  media_views   MediaView[]
+
+  @@index([event_id, created_at(sort: Desc)])
+  @@index([album_id])
+  @@index([uploaded_by])
+  @@index([club_id])
+  @@index([upload_status])
+  @@index([moderation_status])
+  @@index([file_type])
+}
+
+model MediaFace {
+  id                  String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  media_id            String    @db.Uuid
+  user_id             String?   @db.Uuid
+  rekognition_face_id String?   @db.VarChar(255)
+  confidence          Decimal?  @db.Decimal(5, 2)
+  bounding_box        Json?
+  is_confirmed        Boolean?  @default(false)
+  is_rejected         Boolean?  @default(false)
+  created_at          DateTime? @default(now()) @db.Timestamptz
+
+  media Media @relation(fields: [media_id], references: [id], onDelete: Cascade)
+  user  User? @relation(fields: [user_id], references: [id], onDelete: Cascade)
+
+  @@index([media_id])
+  @@index([user_id])
+  @@index([user_id, media_id])
+}
+
+model Like {
+  id         String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  user_id    String    @db.Uuid
+  media_id   String    @db.Uuid
+  created_at DateTime? @default(now()) @db.Timestamptz
+
+  user  User  @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  media Media @relation(fields: [media_id], references: [id], onDelete: Cascade)
+
+  @@unique([user_id, media_id])
+  @@index([media_id])
+  @@index([user_id])
+}
+
+model Comment {
+  id         String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  media_id   String    @db.Uuid
+  user_id    String    @db.Uuid
+  parent_id  String?   @db.Uuid
+  content    String    @db.Text
+  is_edited  Boolean?  @default(false)
+  is_deleted Boolean?  @default(false)
+  like_count Int?      @default(0)
+  created_at DateTime? @default(now()) @db.Timestamptz
+  updated_at DateTime? @default(now()) @updatedAt @db.Timestamptz
+
+  media   Media         @relation(fields: [media_id], references: [id], onDelete: Cascade)
+  user    User          @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  parent  Comment?      @relation("CommentToComment", fields: [parent_id], references: [id], onDelete: Cascade)
+  replies Comment[]     @relation("CommentToComment")
+  likes   CommentLike[]
+
+  @@index([media_id, created_at])
+  @@index([user_id])
+  @@index([parent_id])
+}
+
+model Favourite {
+  id         String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  user_id    String    @db.Uuid
+  media_id   String    @db.Uuid
+  created_at DateTime? @default(now()) @db.Timestamptz
+
+  user  User  @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  media Media @relation(fields: [media_id], references: [id], onDelete: Cascade)
+
+  @@unique([user_id, media_id])
+  @@index([user_id, created_at(sort: Desc)])
+}
+
+model TagInMedia {
+  id             String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  media_id       String    @db.Uuid
+  tagged_user_id String    @db.Uuid
+  tagged_by      String?   @db.Uuid
+  position_x     Decimal?  @db.Decimal(5, 2)
+  position_y     Decimal?  @db.Decimal(5, 2)
+  created_at     DateTime? @default(now()) @db.Timestamptz
+
+  media       Media @relation(fields: [media_id], references: [id], onDelete: Cascade)
+  tagged_user User  @relation("TaggedUser", fields: [tagged_user_id], references: [id], onDelete: Cascade)
+  tag_creator User? @relation("TagCreator", fields: [tagged_by], references: [id])
+
+  @@unique([media_id, tagged_user_id])
+  @@index([media_id])
+  @@index([tagged_user_id])
+}
+
+model Notification {
+  id          String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  user_id     String    @db.Uuid
+  type        String    @db.VarChar(100)
+  actor_id    String?   @db.Uuid
+  entity_type String?   @db.VarChar(50)
+  entity_id   String?   @db.Uuid
+  message     String    @db.Text
+  is_read     Boolean?  @default(false)
+  created_at  DateTime? @default(now()) @db.Timestamptz
+
+  user  User  @relation("NotificationUser", fields: [user_id], references: [id], onDelete: Cascade)
+  actor User? @relation("NotificationActor", fields: [actor_id], references: [id])
+
+  @@index([user_id, created_at(sort: Desc)])
+}
+
+model Download {
+  id                String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  media_id          String    @db.Uuid
+  user_id           String?   @db.Uuid
+  ip_address        String?   @db.VarChar(50)
+  user_agent        String?   @db.Text
+  watermark_applied Boolean?  @default(true)
+  created_at        DateTime? @default(now()) @db.Timestamptz
+
+  media Media @relation(fields: [media_id], references: [id], onDelete: Cascade)
+  user  User? @relation(fields: [user_id], references: [id])
+
+  @@index([media_id])
+  @@index([user_id])
+  @@index([created_at(sort: Desc)])
+}
+
+model ClubInvitation {
+  id          String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  club_id     String    @db.Uuid
+  invited_by  String?   @db.Uuid
+  email       String?   @db.VarChar(255)
+  token       String    @unique @db.VarChar(255)
+  type        String?   @default("email") @db.VarChar(50)
+  role        String?   @default("member") @db.VarChar(50)
+  status      String?   @default("pending") @db.VarChar(50)
+  max_uses    Int?
+  use_count   Int?      @default(0)
+  accepted_by String?   @db.Uuid
+  accepted_at DateTime? @db.Timestamptz
+  expires_at  DateTime  @db.Timestamptz
+  created_at  DateTime? @default(now()) @db.Timestamptz
+
+  club     Club  @relation(fields: [club_id], references: [id], onDelete: Cascade)
+  inviter  User? @relation("InvitationSender", fields: [invited_by], references: [id])
+  acceptor User? @relation("InvitationAcceptor", fields: [accepted_by], references: [id])
+
+  @@index([token])
+  @@index([email])
+  @@index([club_id])
+}
+
+model CommentLike {
+  id         String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  user_id    String    @db.Uuid
+  comment_id String    @db.Uuid
+  created_at DateTime? @default(now()) @db.Timestamptz
+
+  user    User    @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  comment Comment @relation(fields: [comment_id], references: [id], onDelete: Cascade)
+
+  @@unique([user_id, comment_id])
+  @@index([comment_id])
+}
+
+model PasswordResetToken {
+  id         String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  user_id    String    @db.Uuid
+  token_hash String    @unique @db.VarChar(64)
+  type       String    @db.VarChar(50)
+  used       Boolean?  @default(false)
+  expires_at DateTime  @db.Timestamptz
+  created_at DateTime? @default(now()) @db.Timestamptz
+
+  user User @relation(fields: [user_id], references: [id], onDelete: Cascade)
+
+  @@index([token_hash])
+  @@index([user_id])
+}
+
+model MediaView {
+  id         String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  media_id   String    @db.Uuid
+  user_id    String?   @db.Uuid
+  ip_address String?   @db.VarChar(50)
+  session_id String?   @db.VarChar(64)
+  viewed_at  DateTime? @default(now()) @db.Timestamptz
+
+  media Media @relation(fields: [media_id], references: [id], onDelete: Cascade)
+  user  User? @relation(fields: [user_id], references: [id], onDelete: Cascade)
+
+  @@index([media_id, viewed_at(sort: Desc)])
+  @@index([user_id])
+}
+
+model Report {
+  id              String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  reporter_id     String    @db.Uuid
+  entity_type     String    @db.VarChar(50)
+  entity_id       String    @db.Uuid
+  reason          String    @db.VarChar(100)
+  description     String?   @db.Text
+  status          String?   @default("pending") @db.VarChar(50)
+  resolved_by     String?   @db.Uuid
+  resolved_at     DateTime? @db.Timestamptz
+  resolution_note String?   @db.Text
+  created_at      DateTime? @default(now()) @db.Timestamptz
+
+  reporter User  @relation("Reporter", fields: [reporter_id], references: [id], onDelete: Cascade)
+  resolver User? @relation("ReportResolver", fields: [resolved_by], references: [id], onDelete: SetNull)
+
+  @@unique([reporter_id, entity_type, entity_id])
+  @@index([status])
+  @@index([entity_type, entity_id])
+}
+
+model AuditLog {
+  id          String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  actor_id    String    @db.Uuid
+  action      String    @db.VarChar(100)
+  entity_type String?   @db.VarChar(50)
+  entity_id   String?   @db.Uuid
+  metadata    Json?
+  ip_address  String?   @db.VarChar(50)
+  created_at  DateTime? @default(now()) @db.Timestamptz
+
+  actor User @relation("AuditActor", fields: [actor_id], references: [id], onDelete: Cascade)
+
+  @@index([actor_id, created_at(sort: Desc)])
+  @@index([entity_type, entity_id])
+  @@index([created_at(sort: Desc)])
+}
