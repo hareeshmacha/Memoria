@@ -1,0 +1,6 @@
+{
+  "buildCommand": "cd memoria-frontend && npm run build",
+  "installCommand": "cd memoria-frontend && npm install",
+  "outputDirectory": "memoria-frontend/.next",
+  "public": "memoria-frontend/public"
+}
