@@ -2,6 +2,7 @@
 
 Memoria is a next-generation campus media and memory management platform. Built specifically for university clubs, Memoria leverages the power of Artificial Intelligence to automatically organize, tag, and securely distribute event photos.
 
+**🚀 Live Deployment:** [https://memoria-live-app.vercel.app](https://memoria-live-app.vercel.app)
 ## ✨ Key Features
 * **AI Smart Tagging:** Powered by AWS Rekognition. Upload photos and let the AI instantly analyze and tag semantic objects (e.g., 'concert', 'crowd', 'outdoor', 'sports').
 * **Face Recognition Integration:** Members can register their faces once. The AI automatically scans all club event photos and securely tags users in images they appear in.
